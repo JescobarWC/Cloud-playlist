@@ -12,7 +12,7 @@ def get_library_repo() -> LibraryRepository:
 
     if settings.storage_backend == "postgres":
         raise NotImplementedError(
-            "PostgreSQL backend is not wired yet. Next step: SQLAlchemy models + Alembic migrations + repository adapter"
+            "PostgreSQL LibraryRepository adapter is not wired yet. Next step: SQLAlchemy/Alembic models for playlists/tracks/playback"
         )
 
     raise ValueError("Unsupported DJ_STORAGE_BACKEND. Use 'sqlite' or 'postgres'")
@@ -24,8 +24,13 @@ def get_import_jobs_repo() -> ImportJobRepository:
         return get_import_jobs_repository()
 
     if settings.storage_backend == "postgres":
-        raise NotImplementedError(
-            "PostgreSQL backend is not wired yet. Next step: SQLAlchemy models + Alembic migrations + repository adapter"
-        )
+        try:
+            from app.infrastructure.postgres_import_jobs_repository import PostgresImportJobsRepository
+        except Exception as exc:  # pragma: no cover - env dependent import path
+            raise NotImplementedError(
+                "PostgreSQL import-jobs adapter requires SQLAlchemy support in the runtime"
+            ) from exc
+
+        return PostgresImportJobsRepository(settings.database_url)
 
     raise ValueError("Unsupported DJ_STORAGE_BACKEND. Use 'sqlite' or 'postgres'")

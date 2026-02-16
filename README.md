@@ -150,9 +150,9 @@ curl -X POST http://localhost:8000/api/v1/analysis-jobs/<job_id>/cancel
 Current default backend is SQLite for local development.
 
 - `DJ_STORAGE_BACKEND=sqlite` (default): uses local SQLite repositories.
-- `DJ_STORAGE_BACKEND=postgres`: reserved for upcoming SQLAlchemy/Alembic adapter work (not yet wired).
+- `DJ_STORAGE_BACKEND=postgres`: partial wiring available for import-jobs adapter (requires SQLAlchemy), while library/playback adapters remain pending.
 - `DJ_SQLITE_DB_PATH`: optional override for SQLite file path.
-- `DATABASE_URL`: planned PostgreSQL connection URL for the next migration step.
+- `DATABASE_URL`: PostgreSQL connection URL used by the import-jobs adapter path.
 
 
 ## Example duplicate + find/replace flow

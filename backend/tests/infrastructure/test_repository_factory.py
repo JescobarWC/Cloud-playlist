@@ -1,6 +1,10 @@
+import importlib.util
+
 import pytest
 
 from app.infrastructure.repository_factory import get_import_jobs_repo, get_library_repo
+
+SQLALCHEMY_AVAILABLE = importlib.util.find_spec("sqlalchemy") is not None
 
 
 def test_repository_factory_returns_sqlite_repositories(monkeypatch) -> None:
@@ -10,13 +14,22 @@ def test_repository_factory_returns_sqlite_repositories(monkeypatch) -> None:
     assert get_import_jobs_repo() is not None
 
 
-def test_repository_factory_postgres_not_implemented(monkeypatch) -> None:
+def test_repository_factory_postgres_not_implemented_for_library(monkeypatch) -> None:
     monkeypatch.setenv("DJ_STORAGE_BACKEND", "postgres")
 
     with pytest.raises(NotImplementedError):
         get_library_repo()
-    with pytest.raises(NotImplementedError):
-        get_import_jobs_repo()
+
+
+def test_repository_factory_postgres_import_jobs(monkeypatch) -> None:
+    monkeypatch.setenv("DJ_STORAGE_BACKEND", "postgres")
+
+    if SQLALCHEMY_AVAILABLE:
+        repo = get_import_jobs_repo()
+        assert repo is not None
+    else:
+        with pytest.raises(NotImplementedError):
+            get_import_jobs_repo()
 
 
 def test_repository_factory_rejects_unknown_backend(monkeypatch) -> None:
