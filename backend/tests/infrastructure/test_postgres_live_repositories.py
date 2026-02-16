@@ -6,6 +6,7 @@ RUN_POSTGRES_TESTS = os.getenv("RUN_POSTGRES_TESTS") == "1"
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
+@pytest.mark.postgres_live
 @pytest.mark.skipif(not RUN_POSTGRES_TESTS, reason="RUN_POSTGRES_TESTS is not enabled")
 def test_postgres_live_library_and_import_jobs_roundtrip() -> None:
     from app.domain.imports import create_import_job

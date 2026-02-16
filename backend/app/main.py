@@ -1,5 +1,6 @@
 import logging
 import time
+from uuid import uuid4
 
 from fastapi import FastAPI, Response
 from starlette.requests import Request
@@ -29,10 +30,15 @@ app = FastAPI(
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
     start = time.perf_counter()
+    request_id = request.headers.get("x-request-id") or str(uuid4())
+
     response = await call_next(request)
+    response.headers["x-request-id"] = request_id
+
     elapsed_ms = (time.perf_counter() - start) * 1000.0
     logger.info(
-        "request method=%s path=%s status=%s duration_ms=%.2f",
+        "request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+        request_id,
         request.method,
         request.url.path,
         response.status_code,
@@ -72,6 +78,6 @@ def readiness(response: Response) -> dict[str, str]:
                 conn.execute("SELECT 1")
     except Exception as exc:  # pragma: no cover - defensive runtime safety
         response.status_code = 503
-        return {"status": "not_ready", "backend": backend, "error": str(exc)}
+        return {"status": "not_ready", "backend": backend, "checks": {"storage": "error"}, "error": str(exc)}
 
-    return {"status": "ready", "backend": backend}
+    return {"status": "ready", "backend": backend, "checks": {"storage": "ok"}}

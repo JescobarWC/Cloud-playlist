@@ -20,3 +20,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+markers = [
+  "postgres_live: tests that require a live PostgreSQL service and RUN_POSTGRES_TESTS=1",
+]

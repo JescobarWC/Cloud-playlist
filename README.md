@@ -160,11 +160,13 @@ Current default backend is SQLite for local development.
 
 Backend scope is close to an internal beta for core DJ-library workflows (imports, playlists, analysis jobs, playback transport, and tools).
 
-Recommended remaining blocks before calling it **beta operativa**:
+Beta hardening status:
 
-1. Add CI job that runs tests against a real PostgreSQL service (not only SQLite in-memory SQLAlchemy fallback).
-2. Add end-to-end API smoke tests with `DJ_STORAGE_BACKEND=postgres` and `alembic upgrade head` in setup.
-3. Add operational basics for production-like beta environments (structured logging, health/readiness depth checks, and minimal rate/error instrumentation).
+- ✅ CI against real PostgreSQL service is in place (`backend-postgres-ci`).
+- ✅ End-to-end Postgres API smoke checks are in place (`tests/test_postgres_api_smoke.py`).
+- ✅ Operational baseline runbook added (`backend/OPERATIONS.md`) with startup/incident checklists.
+
+Operational runbook: see `backend/OPERATIONS.md`.
 
 
 ## Example duplicate + find/replace flow

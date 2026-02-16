@@ -8,6 +8,7 @@ RUN_POSTGRES_TESTS = os.getenv("RUN_POSTGRES_TESTS") == "1"
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 
+@pytest.mark.postgres_live
 @pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi is not installed in this environment")
 @pytest.mark.skipif(not RUN_POSTGRES_TESTS, reason="RUN_POSTGRES_TESTS is not enabled")
 def test_postgres_backend_api_smoke(monkeypatch) -> None:
@@ -33,6 +34,7 @@ def test_postgres_backend_api_smoke(monkeypatch) -> None:
     assert ready.status_code == 200
     assert ready.json()["status"] == "ready"
     assert ready.json()["backend"] == "postgres"
+    assert ready.json()["checks"]["storage"] == "ok"
 
     create_playlist = client.post("/api/v1/playlists", json={"name": "Smoke"})
     assert create_playlist.status_code == 201

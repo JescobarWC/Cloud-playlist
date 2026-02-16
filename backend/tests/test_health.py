@@ -30,6 +30,7 @@ def test_readiness_returns_ready_for_default_backend() -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
     assert response.json()["backend"] in {"sqlite", "postgres"}
+    assert response.json()["checks"]["storage"] == "ok"
 
 
 @pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi is not installed in this environment")
@@ -48,4 +49,18 @@ def test_readiness_returns_503_when_repository_unavailable(monkeypatch) -> None:
 
     assert response.status_code == 503
     assert response.json()["status"] == "not_ready"
+    assert response.json()["checks"]["storage"] == "error"
     assert "repository unavailable" in response.json()["error"]
+
+
+@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi is not installed in this environment")
+def test_healthcheck_sets_request_id_header() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.get("/health", headers={"x-request-id": "req-123"})
+
+    assert response.status_code == 200
+    assert response.headers.get("x-request-id") == "req-123"
