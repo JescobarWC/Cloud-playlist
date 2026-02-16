@@ -151,9 +151,20 @@ curl -X POST http://localhost:8000/api/v1/analysis-jobs/<job_id>/cancel
 Current default backend is SQLite for local development.
 
 - `DJ_STORAGE_BACKEND=sqlite` (default): uses local SQLite repositories.
-- `DJ_STORAGE_BACKEND=postgres`: partial wiring available (import-jobs adapter + SQLAlchemy models + Alembic baseline). Full library/playback adapter parity remains pending.
+- `DJ_STORAGE_BACKEND=postgres`: wired for import-jobs and library/playback/tools/analysis repositories via SQLAlchemy-backed adapters (factory-selected).
 - `DJ_SQLITE_DB_PATH`: optional override for SQLite file path.
 - `DATABASE_URL`: PostgreSQL connection URL used by the import-jobs adapter path.
+
+
+## Beta readiness snapshot
+
+Backend scope is close to an internal beta for core DJ-library workflows (imports, playlists, analysis jobs, playback transport, and tools).
+
+Recommended remaining blocks before calling it **beta operativa**:
+
+1. Add CI job that runs tests against a real PostgreSQL service (not only SQLite in-memory SQLAlchemy fallback).
+2. Add end-to-end API smoke tests with `DJ_STORAGE_BACKEND=postgres` and `alembic upgrade head` in setup.
+3. Add operational basics for production-like beta environments (structured logging, health/readiness depth checks, and minimal rate/error instrumentation).
 
 
 ## Example duplicate + find/replace flow
