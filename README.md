@@ -26,6 +26,7 @@ This PR introduces a minimal backend service bootstrap:
 - Playback transport endpoints for playlists (`GET/POST /api/v1/playlists/{id}/playback*`) with clock-synced position progression
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
 - SQLite-backed import job persistence (`backend/data/app.db`) for local development
+- Storage backend selection groundwork via env (`DJ_STORAGE_BACKEND=sqlite|postgres`)
 - Basic pytest coverage for connector normalization, library normalization mapping, and health/API behavior
 - Backend dependency and test config in `backend/pyproject.toml`
 
@@ -138,3 +139,13 @@ curl -X POST http://localhost:8000/api/v1/playlists/1/analysis-jobs
 # 2) Poll status
 curl http://localhost:8000/api/v1/analysis-jobs/<job_id>
 ```
+
+
+## Storage backend configuration
+
+Current default backend is SQLite for local development.
+
+- `DJ_STORAGE_BACKEND=sqlite` (default): uses local SQLite repositories.
+- `DJ_STORAGE_BACKEND=postgres`: reserved for upcoming SQLAlchemy/Alembic adapter work (not yet wired).
+- `DJ_SQLITE_DB_PATH`: optional override for SQLite file path.
+- `DATABASE_URL`: planned PostgreSQL connection URL for the next migration step.

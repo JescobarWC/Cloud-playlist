@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.domain.imports import create_import_job
-from app.infrastructure.import_jobs_repository import get_import_jobs_repository
+from app.infrastructure.repository_factory import get_import_jobs_repo
 
 router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
 
@@ -27,7 +27,7 @@ def create_import(payload: CreateImportRequest) -> ImportJobResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    repository = get_import_jobs_repository()
+    repository = get_import_jobs_repo()
     repository.save(job)
 
     return ImportJobResponse(
@@ -41,7 +41,7 @@ def create_import(payload: CreateImportRequest) -> ImportJobResponse:
 
 @router.get("/{job_id}", response_model=ImportJobResponse)
 def get_import(job_id: str) -> ImportJobResponse:
-    repository = get_import_jobs_repository()
+    repository = get_import_jobs_repo()
     job = repository.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Import job '{job_id}' was not found")

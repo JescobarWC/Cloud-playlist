@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.infrastructure.library_repository import get_library_repository
+from app.infrastructure.repository_factory import get_library_repo
 
 router = APIRouter(prefix="/api/v1/playlists/{playlist_id}/playback", tags=["playback"])
 
@@ -27,7 +27,7 @@ class PlaybackStateResponse(BaseModel):
 
 @router.get("", response_model=PlaybackStateResponse)
 def get_playback_state(playlist_id: int) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.get_playback_state(playlist_id)
     except ValueError as exc:
@@ -37,7 +37,7 @@ def get_playback_state(playlist_id: int) -> PlaybackStateResponse:
 
 @router.post("/play", response_model=PlaybackStateResponse)
 def play(playlist_id: int) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.set_playing(playlist_id, True)
     except ValueError as exc:
@@ -47,7 +47,7 @@ def play(playlist_id: int) -> PlaybackStateResponse:
 
 @router.post("/pause", response_model=PlaybackStateResponse)
 def pause(playlist_id: int) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.set_playing(playlist_id, False)
     except ValueError as exc:
@@ -57,7 +57,7 @@ def pause(playlist_id: int) -> PlaybackStateResponse:
 
 @router.post("/seek", response_model=PlaybackStateResponse)
 def seek(playlist_id: int, payload: SeekRequest) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.seek(playlist_id, payload.position_seconds)
     except ValueError as exc:
@@ -67,7 +67,7 @@ def seek(playlist_id: int, payload: SeekRequest) -> PlaybackStateResponse:
 
 @router.post("/next", response_model=PlaybackStateResponse)
 def next_track(playlist_id: int) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.move_track(playlist_id, "next")
     except ValueError as exc:
@@ -79,7 +79,7 @@ def next_track(playlist_id: int) -> PlaybackStateResponse:
 
 @router.post("/previous", response_model=PlaybackStateResponse)
 def previous_track(playlist_id: int) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.move_track(playlist_id, "previous")
     except ValueError as exc:
@@ -91,7 +91,7 @@ def previous_track(playlist_id: int) -> PlaybackStateResponse:
 
 @router.post("/load", response_model=PlaybackStateResponse)
 def load_track(playlist_id: int, payload: LoadTrackRequest) -> PlaybackStateResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         state = repository.set_current_track(playlist_id, payload.track_id)
     except ValueError as exc:

@@ -8,7 +8,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.domain.audio_analysis import analyze_audio_file
-from app.infrastructure.library_repository import LibraryRepository, get_library_repository
+from app.infrastructure.library_repository import LibraryRepository
+from app.infrastructure.repository_factory import get_library_repo
 
 router = APIRouter(tags=["analysis-jobs"])
 
@@ -53,7 +54,7 @@ def _run_analysis_job(db_path, job_id: str, playlist_id: int) -> None:
 
 @router.post("/api/v1/playlists/{playlist_id}/analysis-jobs", response_model=AnalysisJobResponse, status_code=202)
 def create_analysis_job(playlist_id: int) -> AnalysisJobResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         tracks = repository.get_playlist_tracks_for_analysis(playlist_id)
     except ValueError as exc:
@@ -78,7 +79,7 @@ def create_analysis_job(playlist_id: int) -> AnalysisJobResponse:
 
 @router.get("/api/v1/analysis-jobs/{job_id}", response_model=AnalysisJobResponse)
 def get_analysis_job(job_id: str) -> AnalysisJobResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     job = repository.get_analysis_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Analysis job '{job_id}' not found")

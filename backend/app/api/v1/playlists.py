@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.domain.audio_analysis import analyze_audio_file
-from app.infrastructure.library_repository import get_library_repository
+from app.infrastructure.repository_factory import get_library_repo
 
 router = APIRouter(prefix="/api/v1", tags=["playlists", "analysis"])
 
@@ -41,14 +41,14 @@ class TrackAnalysisResponse(BaseModel):
 
 @router.post("/playlists", response_model=CreatePlaylistResponse, status_code=201)
 def create_playlist(payload: CreatePlaylistRequest) -> CreatePlaylistResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     playlist_id = repository.create_playlist(payload.name)
     return CreatePlaylistResponse(playlist_id=playlist_id, name=payload.name)
 
 
 @router.post("/playlists/{playlist_id}/tracks", response_model=AddTrackResponse, status_code=201)
 def add_track_to_playlist(playlist_id: int, payload: AddTrackRequest) -> AddTrackResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     try:
         track_id = repository.add_track_to_playlist(
             playlist_id=playlist_id,
@@ -64,7 +64,7 @@ def add_track_to_playlist(playlist_id: int, payload: AddTrackRequest) -> AddTrac
 
 @router.get("/playlists/{playlist_id}")
 def get_playlist(playlist_id: int) -> dict[str, object]:
-    repository = get_library_repository()
+    repository = get_library_repo()
     playlist = repository.get_playlist(playlist_id)
     if playlist is None:
         raise HTTPException(status_code=404, detail=f"Playlist '{playlist_id}' not found")
@@ -73,7 +73,7 @@ def get_playlist(playlist_id: int) -> dict[str, object]:
 
 @router.post("/tracks/{track_id}/analyze", response_model=TrackAnalysisResponse)
 def analyze_track(track_id: int) -> TrackAnalysisResponse:
-    repository = get_library_repository()
+    repository = get_library_repo()
     track = repository.get_track(track_id)
     if track is None:
         raise HTTPException(status_code=404, detail=f"Track '{track_id}' not found")
