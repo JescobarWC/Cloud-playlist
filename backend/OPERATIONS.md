@@ -23,6 +23,23 @@ This document defines the minimum operational baseline for the backend beta.
    - `GET /health` -> `200 {"status":"ok"}`
    - `GET /ready` -> `200` and `checks.storage == "ok"`
 
+## One-command beta gate (recommended)
+
+From repository root:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/dj_bridge \
+  ./backend/scripts/beta_go_no_go.sh
+```
+
+Optional probe validation against a running API:
+
+```bash
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/dj_bridge \
+BASE_URL=http://localhost:8000 \
+  ./backend/scripts/beta_go_no_go.sh
+```
+
 ## CI checks
 
 - Workflow: `.github/workflows/backend-postgres-ci.yml`
@@ -60,4 +77,6 @@ Go decision:
 
 - **GO**: all checks completed and signed off
 - **NO-GO**: any critical check missing or flaky
+
+Use `backend/BETA_SIGNOFF.md` to capture evidence and final sign-off.
 

@@ -170,6 +170,8 @@ Operational runbook: see `backend/OPERATIONS.md`.
 
 Beta exit checklist: see `backend/OPERATIONS.md#beta-exit-checklist-go-no-go`.
 
+For a one-command gate run, use `backend/scripts/beta_go_no_go.sh`.
+
 
 ## Example duplicate + find/replace flow
 
