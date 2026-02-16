@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import aifc
 import math
+import shutil
+import subprocess
+import tempfile
 import wave
 from array import array
 from pathlib import Path
 
 NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+SUPPORTED_DIRECT_SUFFIXES = {".wav", ".aif", ".aiff"}
 
 
 def _to_mono(samples: array, channels: int) -> list[float]:
@@ -99,28 +104,82 @@ def _estimate_key(samples: list[float], sample_rate: int) -> str | None:
     return f"{note}{octave}"
 
 
+def _load_pcm_samples(path: Path) -> tuple[list[float], int]:
+    suffix = path.suffix.lower()
+
+    if suffix == ".wav":
+        with wave.open(str(path), "rb") as audio_file:
+            channels = audio_file.getnchannels()
+            sample_width = audio_file.getsampwidth()
+            sample_rate = audio_file.getframerate()
+            total_frames = audio_file.getnframes()
+            raw_frames = audio_file.readframes(total_frames)
+    elif suffix in {".aif", ".aiff"}:
+        with aifc.open(str(path), "rb") as audio_file:
+            channels = audio_file.getnchannels()
+            sample_width = audio_file.getsampwidth()
+            sample_rate = audio_file.getframerate()
+            total_frames = audio_file.getnframes()
+            raw_frames = audio_file.readframes(total_frames)
+    else:
+        raise ValueError("Unsupported direct audio format")
+
+    if sample_width != 2:
+        raise ValueError("Only 16-bit PCM WAV/AIFF files are supported directly")
+
+    samples = array("h")
+    samples.frombytes(raw_frames)
+    mono = _to_mono(samples, channels)
+    return _normalize(mono), sample_rate
+
+
+def _decode_with_ffmpeg_to_wav(path: Path) -> Path:
+    if shutil.which("ffmpeg") is None:
+        raise ValueError(
+            "Unsupported audio format for direct analysis. Install ffmpeg to analyze non-WAV/AIFF files"
+        )
+
+    out_dir = Path(tempfile.mkdtemp(prefix="dj-analysis-"))
+    out_wav = out_dir / "decoded.wav"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(path),
+        "-ac",
+        "1",
+        "-ar",
+        "44100",
+        "-sample_fmt",
+        "s16",
+        str(out_wav),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not out_wav.exists():
+        raise ValueError("ffmpeg failed to decode audio file for analysis")
+    return out_wav
+
+
 def analyze_audio_file(file_path: str) -> dict[str, object]:
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-    if path.suffix.lower() != ".wav":
-        raise ValueError("Only WAV analysis is supported in this MVP")
+    suffix = path.suffix.lower()
 
-    with wave.open(str(path), "rb") as wav_file:
-        channels = wav_file.getnchannels()
-        sample_width = wav_file.getsampwidth()
-        sample_rate = wav_file.getframerate()
-        total_frames = wav_file.getnframes()
-        raw_frames = wav_file.readframes(total_frames)
+    decoded_temp: Path | None = None
+    if suffix in SUPPORTED_DIRECT_SUFFIXES:
+        normalized, sample_rate = _load_pcm_samples(path)
+    else:
+        decoded_temp = _decode_with_ffmpeg_to_wav(path)
+        normalized, sample_rate = _load_pcm_samples(decoded_temp)
 
-    if sample_width != 2:
-        raise ValueError("Only 16-bit PCM WAV files are supported in this MVP")
-
-    samples = array("h")
-    samples.frombytes(raw_frames)
-    mono = _to_mono(samples, channels)
-    normalized = _normalize(mono)
+    if decoded_temp is not None and decoded_temp.parent.exists():
+        try:
+            decoded_temp.unlink(missing_ok=True)
+            decoded_temp.parent.rmdir()
+        except OSError:
+            pass
 
     return {
         "waveform": _waveform_envelope(normalized),

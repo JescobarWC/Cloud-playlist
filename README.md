@@ -102,7 +102,7 @@ curl -X POST http://localhost:8000/api/v1/tracks/1/analyze
 curl http://localhost:8000/api/v1/playlists/1
 ```
 
-> Note: analysis MVP currently supports 16-bit PCM WAV files.
+> Note: analysis supports 16-bit PCM WAV/AIFF directly; other formats require `ffmpeg` to be installed for decode.
 
 
 ## Example playback transport flow
