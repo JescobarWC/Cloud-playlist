@@ -82,3 +82,32 @@ def test_get_analysis_job_404_when_missing(tmp_path: Path) -> None:
 
     response = client.get("/api/v1/analysis-jobs/missing")
     assert response.status_code == 404
+
+
+@pytest.mark.skipif(not FASTAPI_AVAILABLE, reason="fastapi is not installed in this environment")
+def test_cancel_analysis_job_endpoint(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    db_path = tmp_path / "app.db"
+    audio_path = tmp_path / "ok.wav"
+    _write_sine_wav(audio_path, seconds=2.0)
+
+    library_repository._library_repository = LibraryRepository(db_path=db_path)
+    client = TestClient(app)
+
+    playlist_id = client.post("/api/v1/playlists", json={"name": "Cancelable"}).json()["playlist_id"]
+    for _ in range(3):
+        client.post(
+            f"/api/v1/playlists/{playlist_id}/tracks",
+            json={"title": "T", "artist": "A", "file_path": str(audio_path)},
+        )
+
+    created = client.post(f"/api/v1/playlists/{playlist_id}/analysis-jobs")
+    assert created.status_code == 202
+    job_id = created.json()["job_id"]
+
+    cancelled = client.post(f"/api/v1/analysis-jobs/{job_id}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] in {"cancelled", "completed", "completed_with_errors"}

@@ -74,6 +74,7 @@ class LibraryRepository:
                     analyzed_tracks INTEGER NOT NULL DEFAULT 0,
                     failed_tracks INTEGER NOT NULL DEFAULT 0,
                     error_message TEXT,
+                    cancelled_at TEXT,
                     created_at TEXT NOT NULL DEFAULT (datetime('now')),
                     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                     FOREIGN KEY (playlist_id) REFERENCES playlists(id)
@@ -108,6 +109,10 @@ class LibraryRepository:
                 connection.execute("ALTER TABLE playback_sessions ADD COLUMN accumulated_seconds REAL NOT NULL DEFAULT 0")
             if "started_at" not in existing_columns:
                 connection.execute("ALTER TABLE playback_sessions ADD COLUMN started_at REAL")
+
+            analysis_job_columns = {row["name"] for row in connection.execute("PRAGMA table_info(analysis_jobs)").fetchall()}
+            if analysis_job_columns and "cancelled_at" not in analysis_job_columns:
+                connection.execute("ALTER TABLE analysis_jobs ADD COLUMN cancelled_at TEXT")
 
             connection.commit()
 
@@ -263,7 +268,7 @@ class LibraryRepository:
     def start_analysis_job(self, job_id: str) -> None:
         with self._connect() as connection:
             connection.execute(
-                "UPDATE analysis_jobs SET status = 'running', error_message = NULL, updated_at = datetime('now') WHERE id = ?",
+                "UPDATE analysis_jobs SET status = 'running', error_message = NULL, cancelled_at = NULL, updated_at = datetime('now') WHERE id = ?",
                 (job_id,),
             )
             connection.commit()
@@ -285,11 +290,13 @@ class LibraryRepository:
     def complete_analysis_job(self, job_id: str) -> None:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT failed_tracks FROM analysis_jobs WHERE id = ?",
+                "SELECT failed_tracks, status FROM analysis_jobs WHERE id = ?",
                 (job_id,),
             ).fetchone()
             if row is None:
                 raise ValueError(f"Analysis job '{job_id}' not found")
+            if row["status"] == "cancelled":
+                return
             status = "completed_with_errors" if int(row["failed_tracks"]) > 0 else "completed"
             connection.execute(
                 "UPDATE analysis_jobs SET status = ?, updated_at = datetime('now') WHERE id = ?",
@@ -305,11 +312,38 @@ class LibraryRepository:
             )
             connection.commit()
 
+    def cancel_analysis_job(self, job_id: str) -> dict[str, object]:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT id, status FROM analysis_jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Analysis job '{job_id}' not found")
+
+            status = row["status"]
+            if status in {"completed", "completed_with_errors", "failed", "cancelled"}:
+                return {"job_id": job_id, "status": status}
+
+            connection.execute(
+                "UPDATE analysis_jobs SET status = 'cancelled', cancelled_at = datetime('now'), updated_at = datetime('now') WHERE id = ?",
+                (job_id,),
+            )
+            connection.commit()
+            return {"job_id": job_id, "status": "cancelled"}
+
+    def is_analysis_job_cancelled(self, job_id: str) -> bool:
+        with self._connect() as connection:
+            row = connection.execute("SELECT status FROM analysis_jobs WHERE id = ?", (job_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Analysis job '{job_id}' not found")
+        return row["status"] == "cancelled"
+
     def get_analysis_job(self, job_id: str) -> dict[str, object] | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
-                SELECT id, playlist_id, status, total_tracks, analyzed_tracks, failed_tracks, error_message, created_at, updated_at
+                SELECT id, playlist_id, status, total_tracks, analyzed_tracks, failed_tracks, error_message, cancelled_at, created_at, updated_at
                 FROM analysis_jobs
                 WHERE id = ?
                 """,
@@ -333,6 +367,7 @@ class LibraryRepository:
             "failed_tracks": failed,
             "progress": round((done / total) * 100, 2) if total > 0 else 100.0,
             "error_message": row["error_message"],
+            "cancelled_at": row["cancelled_at"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

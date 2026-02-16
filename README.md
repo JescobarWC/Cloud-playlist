@@ -22,7 +22,7 @@ This PR introduces a minimal backend service bootstrap:
 - VirtualDJ parser preview endpoint `POST /api/v1/connectors/virtualdj/preview`
 - Playlist management endpoints (`POST /api/v1/playlists`, `POST /api/v1/playlists/{id}/tracks`, `GET /api/v1/playlists/{id}`)
 - Track analysis endpoint `POST /api/v1/tracks/{track_id}/analyze` (MVP WAV waveform/BPM/key)
-- Async analysis jobs endpoints (`POST /api/v1/playlists/{id}/analysis-jobs`, `GET /api/v1/analysis-jobs/{job_id}`)
+- Async analysis jobs endpoints (`POST /api/v1/playlists/{id}/analysis-jobs`, `GET /api/v1/analysis-jobs/{job_id}`, `POST /api/v1/analysis-jobs/{job_id}/cancel`)
 - Duplicate finder and find/replace tools endpoints (`/api/v1/tools/*`) with undo
 - Playback transport endpoints for playlists (`GET/POST /api/v1/playlists/{id}/playback*`) with clock-synced position progression
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
@@ -139,6 +139,9 @@ curl -X POST http://localhost:8000/api/v1/playlists/1/analysis-jobs
 
 # 2) Poll status
 curl http://localhost:8000/api/v1/analysis-jobs/<job_id>
+
+# 3) Cancel if needed
+curl -X POST http://localhost:8000/api/v1/analysis-jobs/<job_id>/cancel
 ```
 
 

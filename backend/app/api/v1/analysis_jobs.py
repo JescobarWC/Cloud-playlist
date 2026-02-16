@@ -23,6 +23,7 @@ class AnalysisJobResponse(BaseModel):
     failed_tracks: int
     progress: float
     error_message: str | None = None
+    cancelled_at: str | None = None
     created_at: str
     updated_at: str
 
@@ -32,6 +33,8 @@ def _run_analysis_job(db_path, job_id: str, playlist_id: int) -> None:
     try:
         repository.start_analysis_job(job_id)
         for track in repository.get_playlist_tracks_for_analysis(playlist_id):
+            if repository.is_analysis_job_cancelled(job_id):
+                return
             track_id = int(track["track_id"])
             file_path = str(track["file_path"])
             try:
@@ -80,6 +83,20 @@ def create_analysis_job(playlist_id: int) -> AnalysisJobResponse:
 @router.get("/api/v1/analysis-jobs/{job_id}", response_model=AnalysisJobResponse)
 def get_analysis_job(job_id: str) -> AnalysisJobResponse:
     repository = get_library_repo()
+    job = repository.get_analysis_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Analysis job '{job_id}' not found")
+    return AnalysisJobResponse(**job)
+
+
+@router.post("/api/v1/analysis-jobs/{job_id}/cancel", response_model=AnalysisJobResponse)
+def cancel_analysis_job(job_id: str) -> AnalysisJobResponse:
+    repository = get_library_repo()
+    try:
+        repository.cancel_analysis_job(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     job = repository.get_analysis_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"Analysis job '{job_id}' not found")

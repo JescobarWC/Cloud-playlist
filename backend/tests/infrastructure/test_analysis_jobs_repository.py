@@ -29,3 +29,17 @@ def test_analysis_job_completed_with_errors(tmp_path) -> None:
     job = repository.get_analysis_job("job-2")
     assert job is not None
     assert job["status"] == "completed_with_errors"
+
+
+def test_analysis_job_cancel(tmp_path) -> None:
+    repository = LibraryRepository(db_path=tmp_path / "app.db")
+    playlist_id = repository.create_playlist("A")
+
+    repository.create_analysis_job("job-3", playlist_id, total_tracks=3)
+    repository.start_analysis_job("job-3")
+    repository.cancel_analysis_job("job-3")
+
+    job = repository.get_analysis_job("job-3")
+    assert job is not None
+    assert job["status"] == "cancelled"
+    assert job["cancelled_at"] is not None
