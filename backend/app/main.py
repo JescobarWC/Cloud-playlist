@@ -67,6 +67,9 @@ def readiness(response: Response) -> dict[str, str]:
         if hasattr(repo, "engine"):
             with repo.engine.connect() as conn:  # type: ignore[attr-defined]
                 conn.exec_driver_sql("SELECT 1")
+        elif hasattr(repo, "_connect"):
+            with repo._connect() as conn:  # type: ignore[attr-defined]
+                conn.execute("SELECT 1")
     except Exception as exc:  # pragma: no cover - defensive runtime safety
         response.status_code = 503
         return {"status": "not_ready", "backend": backend, "error": str(exc)}
