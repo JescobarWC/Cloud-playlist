@@ -1,0 +1,26 @@
+[project]
+name = "dj-bridge-backend"
+version = "0.1.0"
+description = "FastAPI backend for DJ Library & Bridge Platform"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111.0,<1.0.0",
+  "uvicorn>=0.30.0,<1.0.0",
+  "sqlalchemy>=2.0.0,<3.0.0",
+  "alembic>=1.13.0,<2.0.0",
+  "psycopg[binary]>=3.1.0,<4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0,<9.0.0",
+  "httpx>=0.27.0,<1.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+markers = [
+  "postgres_live: tests that require a live PostgreSQL service and RUN_POSTGRES_TESTS=1",
+]
