@@ -386,14 +386,18 @@ class PostgresLibraryRepository:
         }
 
     def find_duplicate_tracks(self) -> list[dict[str, object]]:
+        aggregate_ids = "STRING_AGG(CAST(id AS TEXT), ',')"
+        if self.engine.dialect.name == "sqlite":
+            aggregate_ids = "GROUP_CONCAT(CAST(id AS TEXT), ',')"
+
         with self.engine.begin() as conn:
             rows = conn.execute(
                 text(
-                    """
+                    f"""
                     SELECT LOWER(title) AS normalized_title,
                            LOWER(artist) AS normalized_artist,
                            COUNT(*) AS track_count,
-                           STRING_AGG(CAST(id AS TEXT), ',') AS track_ids
+                           {aggregate_ids} AS track_ids
                     FROM tracks
                     GROUP BY normalized_title, normalized_artist
                     HAVING COUNT(*) > 1
