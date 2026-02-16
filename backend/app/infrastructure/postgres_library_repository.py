@@ -315,7 +315,14 @@ class PostgresLibraryRepository:
                 text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
                 {"tid": track_id, "st": new_started_at, "pid": playlist_id},
             )
-        return self.get_playback_state(playlist_id)
+        return {
+            "playlist_id": playlist_id,
+            "track_ids": track_ids,
+            "current_track_id": track_id,
+            "current_position_seconds": 0.0,
+            "is_playing": bool(session["is_playing"]),
+            "current_index": track_ids.index(track_id),
+        }
 
     def set_playing(self, playlist_id: int, is_playing: bool) -> dict[str, object]:
         session = self._playback_state_row(playlist_id)
@@ -369,7 +376,14 @@ class PostgresLibraryRepository:
                 text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
                 {"tid": new_track_id, "st": new_started_at, "pid": playlist_id},
             )
-        return self.get_playback_state(playlist_id)
+        return {
+            "playlist_id": playlist_id,
+            "track_ids": track_ids,
+            "current_track_id": new_track_id,
+            "current_position_seconds": 0.0,
+            "is_playing": bool(session["is_playing"]),
+            "current_index": new_idx,
+        }
 
     def find_duplicate_tracks(self) -> list[dict[str, object]]:
         with self.engine.begin() as conn:

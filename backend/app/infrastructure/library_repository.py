@@ -546,7 +546,14 @@ class LibraryRepository:
             )
             connection.commit()
 
-        return self.get_playback_state(playlist_id)
+        return {
+            "playlist_id": playlist_id,
+            "track_ids": track_ids,
+            "current_track_id": track_id,
+            "current_position_seconds": 0.0,
+            "is_playing": bool(session["is_playing"]),
+            "current_index": track_ids.index(track_id),
+        }
 
     def set_playing(self, playlist_id: int, is_playing: bool) -> dict[str, object]:
         with self._connect() as connection:
@@ -632,7 +639,14 @@ class LibraryRepository:
             )
             connection.commit()
 
-        return self.get_playback_state(playlist_id)
+        return {
+            "playlist_id": playlist_id,
+            "track_ids": track_ids,
+            "current_track_id": new_track_id,
+            "current_position_seconds": 0.0,
+            "is_playing": bool(session["is_playing"]),
+            "current_index": new_index,
+        }
 
 
 _library_repository: LibraryRepository | None = None
