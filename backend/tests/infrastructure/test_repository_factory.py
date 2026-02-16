@@ -30,6 +30,7 @@ def test_repository_factory_postgres_import_jobs(monkeypatch) -> None:
     monkeypatch.setenv("DJ_STORAGE_BACKEND", "postgres")
 
     if SQLALCHEMY_AVAILABLE:
+        monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
         repo = get_import_jobs_repo()
         assert repo is not None
     else:
