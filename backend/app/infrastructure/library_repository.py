@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -52,6 +53,16 @@ class LibraryRepository:
                     analyzed_at TEXT NOT NULL DEFAULT (datetime('now')),
                     FOREIGN KEY (track_id) REFERENCES tracks(id)
                 );
+
+                CREATE TABLE IF NOT EXISTS playback_sessions (
+                    playlist_id INTEGER PRIMARY KEY,
+                    current_track_id INTEGER,
+                    current_position_seconds REAL NOT NULL DEFAULT 0,
+                    is_playing INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    FOREIGN KEY (playlist_id) REFERENCES playlists(id),
+                    FOREIGN KEY (current_track_id) REFERENCES tracks(id)
+                );
                 """
             )
             connection.commit()
@@ -59,8 +70,13 @@ class LibraryRepository:
     def create_playlist(self, name: str) -> int:
         with self._connect() as connection:
             cursor = connection.execute("INSERT INTO playlists (name) VALUES (?)", (name,))
+            playlist_id = int(cursor.lastrowid)
+            connection.execute(
+                "INSERT OR IGNORE INTO playback_sessions (playlist_id, current_track_id, current_position_seconds, is_playing) VALUES (?, NULL, 0, 0)",
+                (playlist_id,),
+            )
             connection.commit()
-            return int(cursor.lastrowid)
+            return playlist_id
 
     def add_track_to_playlist(self, playlist_id: int, title: str, artist: str, file_path: str) -> int:
         with self._connect() as connection:
@@ -84,6 +100,17 @@ class LibraryRepository:
                 "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
                 (playlist_id, track_id, next_position),
             )
+
+            session = connection.execute(
+                "SELECT current_track_id FROM playback_sessions WHERE playlist_id = ?",
+                (playlist_id,),
+            ).fetchone()
+            if session is not None and session["current_track_id"] is None:
+                connection.execute(
+                    "UPDATE playback_sessions SET current_track_id = ?, updated_at = datetime('now') WHERE playlist_id = ?",
+                    (track_id, playlist_id),
+                )
+
             connection.commit()
             return track_id
 
@@ -152,7 +179,7 @@ class LibraryRepository:
                     "analysis": {
                         "bpm": track["bpm"],
                         "key": track["musical_key"],
-                        "waveform_json": track["waveform_json"],
+                        "waveform": json.loads(track["waveform_json"]),
                     }
                     if track["waveform_json"] is not None
                     else None,
@@ -160,6 +187,141 @@ class LibraryRepository:
                 for track in tracks
             ],
         }
+
+    def _list_playlist_track_ids(self, connection: sqlite3.Connection, playlist_id: int) -> list[int]:
+        rows = connection.execute(
+            "SELECT track_id FROM playlist_tracks WHERE playlist_id = ? ORDER BY position ASC",
+            (playlist_id,),
+        ).fetchall()
+        return [int(row["track_id"]) for row in rows]
+
+    def _ensure_playlist_exists(self, connection: sqlite3.Connection, playlist_id: int) -> None:
+        row = connection.execute("SELECT id FROM playlists WHERE id = ?", (playlist_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"Playlist '{playlist_id}' not found")
+
+    def _get_or_create_playback_session_row(self, connection: sqlite3.Connection, playlist_id: int) -> sqlite3.Row:
+        self._ensure_playlist_exists(connection, playlist_id)
+        connection.execute(
+            "INSERT OR IGNORE INTO playback_sessions (playlist_id, current_track_id, current_position_seconds, is_playing) VALUES (?, NULL, 0, 0)",
+            (playlist_id,),
+        )
+        row = connection.execute(
+            "SELECT playlist_id, current_track_id, current_position_seconds, is_playing FROM playback_sessions WHERE playlist_id = ?",
+            (playlist_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Playback session for playlist '{playlist_id}' could not be created")
+        return row
+
+    def get_playback_state(self, playlist_id: int) -> dict[str, object]:
+        with self._connect() as connection:
+            session = self._get_or_create_playback_session_row(connection, playlist_id)
+            track_ids = self._list_playlist_track_ids(connection, playlist_id)
+
+        current_track_id = session["current_track_id"]
+        current_index = track_ids.index(current_track_id) if current_track_id in track_ids else None
+
+        return {
+            "playlist_id": playlist_id,
+            "track_ids": track_ids,
+            "current_track_id": int(current_track_id) if current_track_id is not None else None,
+            "current_position_seconds": float(session["current_position_seconds"]),
+            "is_playing": bool(session["is_playing"]),
+            "current_index": current_index,
+        }
+
+    def set_current_track(self, playlist_id: int, track_id: int) -> dict[str, object]:
+        with self._connect() as connection:
+            self._get_or_create_playback_session_row(connection, playlist_id)
+            track_ids = self._list_playlist_track_ids(connection, playlist_id)
+            if track_id not in track_ids:
+                raise ValueError(f"Track '{track_id}' is not in playlist '{playlist_id}'")
+
+            connection.execute(
+                """
+                UPDATE playback_sessions
+                SET current_track_id = ?, current_position_seconds = 0, updated_at = datetime('now')
+                WHERE playlist_id = ?
+                """,
+                (track_id, playlist_id),
+            )
+            connection.commit()
+
+        return self.get_playback_state(playlist_id)
+
+    def set_playing(self, playlist_id: int, is_playing: bool) -> dict[str, object]:
+        with self._connect() as connection:
+            session = self._get_or_create_playback_session_row(connection, playlist_id)
+            current_track_id = session["current_track_id"]
+            if current_track_id is None:
+                track_ids = self._list_playlist_track_ids(connection, playlist_id)
+                current_track_id = track_ids[0] if track_ids else None
+
+            connection.execute(
+                """
+                UPDATE playback_sessions
+                SET current_track_id = ?, is_playing = ?, updated_at = datetime('now')
+                WHERE playlist_id = ?
+                """,
+                (current_track_id, 1 if is_playing else 0, playlist_id),
+            )
+            connection.commit()
+
+        return self.get_playback_state(playlist_id)
+
+    def seek(self, playlist_id: int, seconds: float) -> dict[str, object]:
+        if seconds < 0:
+            raise ValueError("Seek position must be >= 0")
+
+        with self._connect() as connection:
+            self._get_or_create_playback_session_row(connection, playlist_id)
+            connection.execute(
+                """
+                UPDATE playback_sessions
+                SET current_position_seconds = ?, updated_at = datetime('now')
+                WHERE playlist_id = ?
+                """,
+                (seconds, playlist_id),
+            )
+            connection.commit()
+
+        return self.get_playback_state(playlist_id)
+
+    def move_track(self, playlist_id: int, direction: str) -> dict[str, object]:
+        if direction not in {"next", "previous"}:
+            raise ValueError("Direction must be 'next' or 'previous'")
+
+        with self._connect() as connection:
+            session = self._get_or_create_playback_session_row(connection, playlist_id)
+            track_ids = self._list_playlist_track_ids(connection, playlist_id)
+            if not track_ids:
+                raise ValueError(f"Playlist '{playlist_id}' has no tracks")
+
+            current_track_id = session["current_track_id"]
+            if current_track_id in track_ids:
+                index = track_ids.index(current_track_id)
+            else:
+                index = 0
+
+            if direction == "next":
+                new_index = (index + 1) % len(track_ids)
+            else:
+                new_index = (index - 1) % len(track_ids)
+
+            new_track_id = track_ids[new_index]
+
+            connection.execute(
+                """
+                UPDATE playback_sessions
+                SET current_track_id = ?, current_position_seconds = 0, updated_at = datetime('now')
+                WHERE playlist_id = ?
+                """,
+                (new_track_id, playlist_id),
+            )
+            connection.commit()
+
+        return self.get_playback_state(playlist_id)
 
 
 _library_repository: LibraryRepository | None = None
