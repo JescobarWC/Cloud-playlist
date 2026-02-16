@@ -2,30 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, MetaData, String, Table, create_engine, select
+from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.domain.imports import ImportJob, parse_connector
-
-metadata = MetaData()
-
-import_jobs_table = Table(
-    "import_jobs",
-    metadata,
-    Column("id", String(64), primary_key=True),
-    Column("connector", String(32), nullable=False),
-    Column("source_uri", String(2048), nullable=False),
-    Column("status", String(32), nullable=False),
-    Column("created_at", DateTime(timezone=True), nullable=False),
-)
+from app.infrastructure.postgres_models import import_jobs_table, metadata
 
 
 class PostgresImportJobsRepository:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
         self.engine: Engine = create_engine(database_url)
-        metadata.create_all(self.engine)
+        metadata.create_all(self.engine, tables=[import_jobs_table])
 
     def save(self, job: ImportJob) -> ImportJob:
         created_at = datetime.fromisoformat(job.created_at)

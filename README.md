@@ -28,6 +28,7 @@ This PR introduces a minimal backend service bootstrap:
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
 - SQLite-backed import job persistence (`backend/data/app.db`) for local development
 - Storage backend selection groundwork via env (`DJ_STORAGE_BACKEND=sqlite|postgres`)
+- Alembic baseline for PostgreSQL schema (`backend/alembic/*`)
 - Basic pytest coverage for connector normalization, library normalization mapping, and health/API behavior
 - Backend dependency and test config in `backend/pyproject.toml`
 
@@ -150,7 +151,7 @@ curl -X POST http://localhost:8000/api/v1/analysis-jobs/<job_id>/cancel
 Current default backend is SQLite for local development.
 
 - `DJ_STORAGE_BACKEND=sqlite` (default): uses local SQLite repositories.
-- `DJ_STORAGE_BACKEND=postgres`: partial wiring available for import-jobs adapter (requires SQLAlchemy), while library/playback adapters remain pending.
+- `DJ_STORAGE_BACKEND=postgres`: partial wiring available (import-jobs adapter + SQLAlchemy models + Alembic baseline). Full library/playback adapter parity remains pending.
 - `DJ_SQLITE_DB_PATH`: optional override for SQLite file path.
 - `DATABASE_URL`: PostgreSQL connection URL used by the import-jobs adapter path.
 
@@ -173,4 +174,14 @@ curl -X POST http://localhost:8000/api/v1/tools/find-replace \
 
 # Undo replace
 curl -X POST http://localhost:8000/api/v1/tools/find-replace/<operation_id>/undo
+```
+
+
+### PostgreSQL migration bootstrap
+
+When running against PostgreSQL, initialize schema with Alembic:
+
+```bash
+cd backend
+alembic upgrade head
 ```
