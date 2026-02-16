@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.domain.audio_analysis import analyze_audio_file
-from app.infrastructure.library_repository import LibraryRepository
 from app.infrastructure.repository_factory import get_library_repo
 
 router = APIRouter(tags=["analysis-jobs"])
@@ -28,15 +27,17 @@ class AnalysisJobResponse(BaseModel):
     updated_at: str
 
 
-def _run_analysis_job(db_path, job_id: str, playlist_id: int) -> None:
-    repository = LibraryRepository(db_path=db_path)
+def _process_analysis_job(repository, job_id: str, playlist_id: int) -> None:
+    """Run analysis job using whichever repository implementation is configured."""
     try:
         repository.start_analysis_job(job_id)
         for track in repository.get_playlist_tracks_for_analysis(playlist_id):
             if repository.is_analysis_job_cancelled(job_id):
                 return
+
             track_id = int(track["track_id"])
             file_path = str(track["file_path"])
+
             try:
                 analysis = analyze_audio_file(file_path)
                 waveform = [round(float(v), 6) for v in analysis["waveform"]]
@@ -55,6 +56,11 @@ def _run_analysis_job(db_path, job_id: str, playlist_id: int) -> None:
         repository.fail_analysis_job(job_id, str(exc))
 
 
+def _run_analysis_job(job_id: str, playlist_id: int) -> None:
+    repository = get_library_repo()
+    _process_analysis_job(repository, job_id, playlist_id)
+
+
 @router.post("/api/v1/playlists/{playlist_id}/analysis-jobs", response_model=AnalysisJobResponse, status_code=202)
 def create_analysis_job(playlist_id: int) -> AnalysisJobResponse:
     repository = get_library_repo()
@@ -68,7 +74,7 @@ def create_analysis_job(playlist_id: int) -> AnalysisJobResponse:
 
     thread = threading.Thread(
         target=_run_analysis_job,
-        kwargs={"db_path": repository.db_path, "job_id": job_id, "playlist_id": playlist_id},
+        kwargs={"job_id": job_id, "playlist_id": playlist_id},
         daemon=True,
     )
     thread.start()
