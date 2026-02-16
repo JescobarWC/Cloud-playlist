@@ -22,7 +22,7 @@ This PR introduces a minimal backend service bootstrap:
 - VirtualDJ parser preview endpoint `POST /api/v1/connectors/virtualdj/preview`
 - Playlist management endpoints (`POST /api/v1/playlists`, `POST /api/v1/playlists/{id}/tracks`, `GET /api/v1/playlists/{id}`)
 - Track analysis endpoint `POST /api/v1/tracks/{track_id}/analyze` (MVP WAV waveform/BPM/key)
-- Playback transport endpoints for playlists (`GET/POST /api/v1/playlists/{id}/playback*`)
+- Playback transport endpoints for playlists (`GET/POST /api/v1/playlists/{id}/playback*`) with clock-synced position progression
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
 - SQLite-backed import job persistence (`backend/data/app.db`) for local development
 - Basic pytest coverage for connector normalization, library normalization mapping, and health/API behavior

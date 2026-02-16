@@ -36,9 +36,10 @@ def test_playback_transport_flow(tmp_path: Path) -> None:
     assert state.json()["current_track_id"] == first_track
 
     assert client.post(f"/api/v1/playlists/{playlist_id}/playback/play").json()["is_playing"] is True
-    assert client.post(f"/api/v1/playlists/{playlist_id}/playback/seek", json={"position_seconds": 15}).json()[
+    seek_position = client.post(f"/api/v1/playlists/{playlist_id}/playback/seek", json={"position_seconds": 15}).json()[
         "current_position_seconds"
-    ] == 15.0
+    ]
+    assert 15.0 <= seek_position <= 15.1
     assert client.post(f"/api/v1/playlists/{playlist_id}/playback/next").json()["current_track_id"] == second_track
     assert (
         client.post(f"/api/v1/playlists/{playlist_id}/playback/load", json={"track_id": first_track}).json()[

@@ -1,4 +1,7 @@
+import time
+
 import pytest
+
 from app.infrastructure.library_repository import LibraryRepository
 
 
@@ -16,12 +19,16 @@ def test_playback_controls_and_navigation(tmp_path) -> None:
     state = repository.set_playing(playlist_id, True)
     assert state["is_playing"] is True
 
+    time.sleep(0.02)
+    progressed = repository.get_playback_state(playlist_id)
+    assert progressed["current_position_seconds"] > state["current_position_seconds"]
+
     state = repository.seek(playlist_id, 12.5)
-    assert state["current_position_seconds"] == 12.5
+    assert state["current_position_seconds"] >= 12.5
 
     state = repository.move_track(playlist_id, "next")
     assert state["current_track_id"] == second_track
-    assert state["current_position_seconds"] == 0.0
+    assert state["current_position_seconds"] <= 0.01
 
     state = repository.move_track(playlist_id, "previous")
     assert state["current_track_id"] == first_track
