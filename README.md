@@ -17,8 +17,9 @@ This PR introduces a minimal backend service bootstrap:
 - FastAPI app entrypoint at `backend/app/main.py`
 - Health endpoint `GET /health`
 - Import job intake endpoint `POST /api/v1/imports`
+- Library normalization endpoint `POST /api/v1/normalize`
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
-- Basic pytest coverage for domain import connector normalization and health API behavior
+- Basic pytest coverage for connector normalization, library normalization mapping, and health/API behavior
 - Backend dependency and test config in `backend/pyproject.toml`
 
 ## Run locally
@@ -38,4 +39,13 @@ uvicorn app.main:app --reload
 curl -X POST http://localhost:8000/api/v1/imports \
   -H "Content-Type: application/json" \
   -d '{"connector": "virtualdj", "source_uri": "/music/VirtualDJ/database.xml"}'
+```
+
+
+## Example normalization request
+
+```bash
+curl -X POST http://localhost:8000/api/v1/normalize \
+  -H "Content-Type: application/json" \
+  -d '{"connector":"Virtual DJ","tracks":[{"id":"t1","title":"Titanium","artist":"David Guetta","bpm":"126"}],"playlists":[{"id":"p1","name":"Main","track_ids":["t1"]}]}'
 ```
