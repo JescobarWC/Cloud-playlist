@@ -13,7 +13,7 @@ def get_library_repo() -> LibraryRepository:
     if settings.storage_backend == "postgres":
         try:
             from app.infrastructure.postgres_library_repository import PostgresLibraryRepository
-        except Exception as exc:  # pragma: no cover - env dependent import path
+        except ImportError as exc:  # pragma: no cover - env dependent import path
             raise NotImplementedError(
                 "PostgreSQL library adapter requires SQLAlchemy support in the runtime"
             ) from exc
@@ -31,7 +31,7 @@ def get_import_jobs_repo() -> ImportJobRepository:
     if settings.storage_backend == "postgres":
         try:
             from app.infrastructure.postgres_import_jobs_repository import PostgresImportJobsRepository
-        except Exception as exc:  # pragma: no cover - env dependent import path
+        except ImportError as exc:  # pragma: no cover - env dependent import path
             raise NotImplementedError(
                 "PostgreSQL import-jobs adapter requires SQLAlchemy support in the runtime"
             ) from exc
