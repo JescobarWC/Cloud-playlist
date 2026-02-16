@@ -14,11 +14,16 @@ def test_repository_factory_returns_sqlite_repositories(monkeypatch) -> None:
     assert get_import_jobs_repo() is not None
 
 
-def test_repository_factory_postgres_not_implemented_for_library(monkeypatch) -> None:
+def test_repository_factory_postgres_library(monkeypatch) -> None:
     monkeypatch.setenv("DJ_STORAGE_BACKEND", "postgres")
 
-    with pytest.raises(NotImplementedError):
-        get_library_repo()
+    if SQLALCHEMY_AVAILABLE:
+        monkeypatch.setenv("DATABASE_URL", "sqlite+pysqlite:///:memory:")
+        repo = get_library_repo()
+        assert repo is not None
+    else:
+        with pytest.raises(NotImplementedError):
+            get_library_repo()
 
 
 def test_repository_factory_postgres_import_jobs(monkeypatch) -> None:

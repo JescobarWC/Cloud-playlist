@@ -11,9 +11,14 @@ def get_library_repo() -> LibraryRepository:
         return get_library_repository()
 
     if settings.storage_backend == "postgres":
-        raise NotImplementedError(
-            "PostgreSQL LibraryRepository adapter is not wired yet. Next step: SQLAlchemy/Alembic models for playlists/tracks/playback"
-        )
+        try:
+            from app.infrastructure.postgres_library_repository import PostgresLibraryRepository
+        except Exception as exc:  # pragma: no cover - env dependent import path
+            raise NotImplementedError(
+                "PostgreSQL library adapter requires SQLAlchemy support in the runtime"
+            ) from exc
+
+        return PostgresLibraryRepository(settings.database_url)
 
     raise ValueError("Unsupported DJ_STORAGE_BACKEND. Use 'sqlite' or 'postgres'")
 
