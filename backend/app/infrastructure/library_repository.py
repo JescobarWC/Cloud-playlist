@@ -65,10 +65,22 @@ class LibraryRepository:
                     FOREIGN KEY (playlist_id) REFERENCES playlists(id),
                     FOREIGN KEY (current_track_id) REFERENCES tracks(id)
                 );
+
+                CREATE TABLE IF NOT EXISTS analysis_jobs (
+                    id TEXT PRIMARY KEY,
+                    playlist_id INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    total_tracks INTEGER NOT NULL DEFAULT 0,
+                    analyzed_tracks INTEGER NOT NULL DEFAULT 0,
+                    failed_tracks INTEGER NOT NULL DEFAULT 0,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    FOREIGN KEY (playlist_id) REFERENCES playlists(id)
+                );
                 """
             )
 
-            # Backwards compatibility if the DB was created by previous revisions.
             existing_columns = {
                 row["name"] for row in connection.execute("PRAGMA table_info(playback_sessions)").fetchall()
             }
@@ -199,6 +211,110 @@ class LibraryRepository:
                 }
                 for track in tracks
             ],
+        }
+
+    def get_playlist_tracks_for_analysis(self, playlist_id: int) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            self._ensure_playlist_exists(connection, playlist_id)
+            rows = connection.execute(
+                """
+                SELECT t.id, t.file_path
+                FROM playlist_tracks pt
+                JOIN tracks t ON t.id = pt.track_id
+                WHERE pt.playlist_id = ?
+                ORDER BY pt.position ASC
+                """,
+                (playlist_id,),
+            ).fetchall()
+        return [{"track_id": int(row["id"]), "file_path": row["file_path"]} for row in rows]
+
+    def create_analysis_job(self, job_id: str, playlist_id: int, total_tracks: int) -> None:
+        with self._connect() as connection:
+            self._ensure_playlist_exists(connection, playlist_id)
+            connection.execute(
+                """
+                INSERT INTO analysis_jobs (id, playlist_id, status, total_tracks, analyzed_tracks, failed_tracks)
+                VALUES (?, ?, 'queued', ?, 0, 0)
+                """,
+                (job_id, playlist_id, total_tracks),
+            )
+            connection.commit()
+
+    def start_analysis_job(self, job_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE analysis_jobs SET status = 'running', error_message = NULL, updated_at = datetime('now') WHERE id = ?",
+                (job_id,),
+            )
+            connection.commit()
+
+    def record_analysis_job_progress(self, job_id: str, analyzed_increment: int = 0, failed_increment: int = 0) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE analysis_jobs
+                SET analyzed_tracks = analyzed_tracks + ?,
+                    failed_tracks = failed_tracks + ?,
+                    updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (analyzed_increment, failed_increment, job_id),
+            )
+            connection.commit()
+
+    def complete_analysis_job(self, job_id: str) -> None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT failed_tracks FROM analysis_jobs WHERE id = ?",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"Analysis job '{job_id}' not found")
+            status = "completed_with_errors" if int(row["failed_tracks"]) > 0 else "completed"
+            connection.execute(
+                "UPDATE analysis_jobs SET status = ?, updated_at = datetime('now') WHERE id = ?",
+                (status, job_id),
+            )
+            connection.commit()
+
+    def fail_analysis_job(self, job_id: str, error_message: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE analysis_jobs SET status = 'failed', error_message = ?, updated_at = datetime('now') WHERE id = ?",
+                (error_message, job_id),
+            )
+            connection.commit()
+
+    def get_analysis_job(self, job_id: str) -> dict[str, object] | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, playlist_id, status, total_tracks, analyzed_tracks, failed_tracks, error_message, created_at, updated_at
+                FROM analysis_jobs
+                WHERE id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        total = int(row["total_tracks"])
+        analyzed = int(row["analyzed_tracks"])
+        failed = int(row["failed_tracks"])
+        done = analyzed + failed
+
+        return {
+            "job_id": row["id"],
+            "playlist_id": int(row["playlist_id"]),
+            "status": row["status"],
+            "total_tracks": total,
+            "analyzed_tracks": analyzed,
+            "failed_tracks": failed,
+            "progress": round((done / total) * 100, 2) if total > 0 else 100.0,
+            "error_message": row["error_message"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
     def _list_playlist_track_ids(self, connection: sqlite3.Connection, playlist_id: int) -> list[int]:
