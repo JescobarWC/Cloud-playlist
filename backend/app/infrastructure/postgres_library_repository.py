@@ -56,7 +56,7 @@ class PostgresLibraryRepository:
             ).first()
             if current_track is not None and current_track[0] is None:
                 conn.execute(
-                    text("UPDATE playback_sessions SET current_track_id = :tid, updated_at = now() WHERE playlist_id = :pid"),
+                    text("UPDATE playback_sessions SET current_track_id = :tid, updated_at = CURRENT_TIMESTAMP WHERE playlist_id = :pid"),
                     {"tid": track_id, "pid": playlist_id},
                 )
 
@@ -83,7 +83,7 @@ class PostgresLibraryRepository:
                       bpm = EXCLUDED.bpm,
                       musical_key = EXCLUDED.musical_key,
                       waveform_json = EXCLUDED.waveform_json,
-                      analyzed_at = now()
+                      analyzed_at = CURRENT_TIMESTAMP
                     """
                 ),
                 {"tid": track_id, "bpm": bpm, "key": musical_key, "wave": waveform_json},
@@ -167,7 +167,7 @@ class PostgresLibraryRepository:
     def start_analysis_job(self, job_id: str) -> None:
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE analysis_jobs SET status='running', error_message=NULL, cancelled_at=NULL, updated_at=now() WHERE id=:jid"),
+                text("UPDATE analysis_jobs SET status='running', error_message=NULL, cancelled_at=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=:jid"),
                 {"jid": job_id},
             )
 
@@ -179,7 +179,7 @@ class PostgresLibraryRepository:
                     UPDATE analysis_jobs
                     SET analyzed_tracks = analyzed_tracks + :a,
                         failed_tracks = failed_tracks + :f,
-                        updated_at = now()
+                        updated_at = CURRENT_TIMESTAMP
                     WHERE id = :jid
                     """
                 ),
@@ -194,12 +194,12 @@ class PostgresLibraryRepository:
             if row["status"] == "cancelled":
                 return
             status = "completed_with_errors" if int(row["failed_tracks"]) > 0 else "completed"
-            conn.execute(text("UPDATE analysis_jobs SET status=:status, updated_at=now() WHERE id=:jid"), {"status": status, "jid": job_id})
+            conn.execute(text("UPDATE analysis_jobs SET status=:status, updated_at=CURRENT_TIMESTAMP WHERE id=:jid"), {"status": status, "jid": job_id})
 
     def fail_analysis_job(self, job_id: str, error_message: str) -> None:
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE analysis_jobs SET status='failed', error_message=:msg, updated_at=now() WHERE id=:jid"),
+                text("UPDATE analysis_jobs SET status='failed', error_message=:msg, updated_at=CURRENT_TIMESTAMP WHERE id=:jid"),
                 {"msg": error_message, "jid": job_id},
             )
 
@@ -211,7 +211,7 @@ class PostgresLibraryRepository:
             status = row["status"]
             if status in {"completed", "completed_with_errors", "failed", "cancelled"}:
                 return {"job_id": job_id, "status": status}
-            conn.execute(text("UPDATE analysis_jobs SET status='cancelled', cancelled_at=now(), updated_at=now() WHERE id=:jid"), {"jid": job_id})
+            conn.execute(text("UPDATE analysis_jobs SET status='cancelled', cancelled_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=:jid"), {"jid": job_id})
             return {"job_id": job_id, "status": "cancelled"}
 
     def is_analysis_job_cancelled(self, job_id: str) -> bool:
@@ -312,7 +312,7 @@ class PostgresLibraryRepository:
         new_started_at = time.time() if bool(session["is_playing"]) else None
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
+                text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=CURRENT_TIMESTAMP WHERE playlist_id=:pid"),
                 {"tid": track_id, "st": new_started_at, "pid": playlist_id},
             )
         return {
@@ -342,7 +342,7 @@ class PostgresLibraryRepository:
 
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE playback_sessions SET current_track_id=:tid, is_playing=:p, accumulated_seconds=:acc, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
+                text("UPDATE playback_sessions SET current_track_id=:tid, is_playing=:p, accumulated_seconds=:acc, started_at=:st, updated_at=CURRENT_TIMESTAMP WHERE playlist_id=:pid"),
                 {"tid": current_track_id, "p": bool(is_playing), "acc": accumulated, "st": started_at, "pid": playlist_id},
             )
         return self.get_playback_state(playlist_id)
@@ -354,7 +354,7 @@ class PostgresLibraryRepository:
         started_at = time.time() if bool(session["is_playing"]) else None
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE playback_sessions SET accumulated_seconds=:s, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
+                text("UPDATE playback_sessions SET accumulated_seconds=:s, started_at=:st, updated_at=CURRENT_TIMESTAMP WHERE playlist_id=:pid"),
                 {"s": seconds, "st": started_at, "pid": playlist_id},
             )
         return self.get_playback_state(playlist_id)
@@ -373,7 +373,7 @@ class PostgresLibraryRepository:
         new_started_at = time.time() if bool(session["is_playing"]) else None
         with self.engine.begin() as conn:
             conn.execute(
-                text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=now() WHERE playlist_id=:pid"),
+                text("UPDATE playback_sessions SET current_track_id=:tid, accumulated_seconds=0, started_at=:st, updated_at=CURRENT_TIMESTAMP WHERE playlist_id=:pid"),
                 {"tid": new_track_id, "st": new_started_at, "pid": playlist_id},
             )
         return {
