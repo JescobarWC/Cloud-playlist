@@ -23,6 +23,7 @@ This PR introduces a minimal backend service bootstrap:
 - Playlist management endpoints (`POST /api/v1/playlists`, `POST /api/v1/playlists/{id}/tracks`, `GET /api/v1/playlists/{id}`)
 - Track analysis endpoint `POST /api/v1/tracks/{track_id}/analyze` (MVP WAV waveform/BPM/key)
 - Async analysis jobs endpoints (`POST /api/v1/playlists/{id}/analysis-jobs`, `GET /api/v1/analysis-jobs/{job_id}`)
+- Duplicate finder and find/replace tools endpoints (`/api/v1/tools/*`) with undo
 - Playback transport endpoints for playlists (`GET/POST /api/v1/playlists/{id}/playback*`) with clock-synced position progression
 - Connector normalization support for `rekordbox`, `serato`, `virtualdj`, `m3u`, and `csv`
 - SQLite-backed import job persistence (`backend/data/app.db`) for local development
@@ -149,3 +150,24 @@ Current default backend is SQLite for local development.
 - `DJ_STORAGE_BACKEND=postgres`: reserved for upcoming SQLAlchemy/Alembic adapter work (not yet wired).
 - `DJ_SQLITE_DB_PATH`: optional override for SQLite file path.
 - `DATABASE_URL`: planned PostgreSQL connection URL for the next migration step.
+
+
+## Example duplicate + find/replace flow
+
+```bash
+# Find duplicate tracks by normalized title+artist
+curl http://localhost:8000/api/v1/tools/duplicates
+
+# Preview replace
+curl -X POST http://localhost:8000/api/v1/tools/find-replace \
+  -H "Content-Type: application/json" \
+  -d '{"field_name":"title","search_text":"Song","replace_text":"Track","apply":false}'
+
+# Apply replace
+curl -X POST http://localhost:8000/api/v1/tools/find-replace \
+  -H "Content-Type: application/json" \
+  -d '{"field_name":"title","search_text":"Song","replace_text":"Track","apply":true}'
+
+# Undo replace
+curl -X POST http://localhost:8000/api/v1/tools/find-replace/<operation_id>/undo
+```

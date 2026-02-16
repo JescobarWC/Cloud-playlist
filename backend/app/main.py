@@ -6,6 +6,7 @@ from app.api.v1.virtualdj import router as virtualdj_router
 from app.api.v1.playlists import router as playlists_router
 from app.api.v1.playback import router as playback_router
 from app.api.v1.analysis_jobs import router as analysis_jobs_router
+from app.api.v1.tools import router as tools_router
 
 app = FastAPI(
     title="DJ Library & Bridge Platform API",
@@ -22,6 +23,7 @@ app.include_router(virtualdj_router)
 app.include_router(playlists_router)
 app.include_router(playback_router)
 app.include_router(analysis_jobs_router)
+app.include_router(tools_router)
 
 
 @app.get("/health", tags=["system"])

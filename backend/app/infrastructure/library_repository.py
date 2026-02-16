@@ -78,6 +78,26 @@ class LibraryRepository:
                     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
                     FOREIGN KEY (playlist_id) REFERENCES playlists(id)
                 );
+
+
+                CREATE TABLE IF NOT EXISTS replace_operations (
+                    id TEXT PRIMARY KEY,
+                    field_name TEXT NOT NULL,
+                    search_text TEXT NOT NULL,
+                    replace_text TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+
+                CREATE TABLE IF NOT EXISTS replace_changes (
+                    operation_id TEXT NOT NULL,
+                    track_id INTEGER NOT NULL,
+                    field_name TEXT NOT NULL,
+                    old_value TEXT NOT NULL,
+                    new_value TEXT NOT NULL,
+                    PRIMARY KEY (operation_id, track_id, field_name),
+                    FOREIGN KEY (operation_id) REFERENCES replace_operations(id),
+                    FOREIGN KEY (track_id) REFERENCES tracks(id)
+                );
                 """
             )
 
@@ -316,6 +336,103 @@ class LibraryRepository:
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
+
+    def find_duplicate_tracks(self) -> list[dict[str, object]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT LOWER(title) AS normalized_title,
+                       LOWER(artist) AS normalized_artist,
+                       COUNT(*) AS track_count,
+                       GROUP_CONCAT(id) AS track_ids
+                FROM tracks
+                GROUP BY normalized_title, normalized_artist
+                HAVING COUNT(*) > 1
+                ORDER BY track_count DESC, normalized_title ASC
+                """
+            ).fetchall()
+
+        duplicates: list[dict[str, object]] = []
+        for row in rows:
+            ids = [int(item) for item in str(row["track_ids"]).split(",") if item]
+            duplicates.append(
+                {
+                    "title": row["normalized_title"],
+                    "artist": row["normalized_artist"],
+                    "track_count": int(row["track_count"]),
+                    "track_ids": ids,
+                }
+            )
+        return duplicates
+
+    def preview_find_replace(self, field_name: str, search_text: str, replace_text: str) -> list[dict[str, object]]:
+        if field_name not in {"title", "artist"}:
+            raise ValueError("field_name must be 'title' or 'artist'")
+        if not search_text:
+            raise ValueError("search_text must not be empty")
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"SELECT id, {field_name} AS old_value FROM tracks WHERE {field_name} LIKE ?",
+                (f"%{search_text}%",),
+            ).fetchall()
+
+        return [
+            {
+                "track_id": int(row["id"]),
+                "old_value": row["old_value"],
+                "new_value": str(row["old_value"]).replace(search_text, replace_text),
+            }
+            for row in rows
+        ]
+
+    def apply_find_replace(self, operation_id: str, field_name: str, search_text: str, replace_text: str) -> dict[str, object]:
+        preview = self.preview_find_replace(field_name, search_text, replace_text)
+
+        with self._connect() as connection:
+            connection.execute(
+                "INSERT INTO replace_operations (id, field_name, search_text, replace_text) VALUES (?, ?, ?, ?)",
+                (operation_id, field_name, search_text, replace_text),
+            )
+            for item in preview:
+                connection.execute(
+                    """
+                    INSERT INTO replace_changes (operation_id, track_id, field_name, old_value, new_value)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (operation_id, item["track_id"], field_name, item["old_value"], item["new_value"]),
+                )
+                connection.execute(
+                    f"UPDATE tracks SET {field_name} = ? WHERE id = ?",
+                    (item["new_value"], item["track_id"]),
+                )
+            connection.commit()
+
+        return {"operation_id": operation_id, "changed_tracks": len(preview)}
+
+    def undo_find_replace(self, operation_id: str) -> dict[str, object]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT track_id, field_name, old_value FROM replace_changes WHERE operation_id = ?",
+                (operation_id,),
+            ).fetchall()
+            if not rows:
+                raise ValueError(f"Replace operation '{operation_id}' not found")
+
+            for row in rows:
+                field_name = row["field_name"]
+                if field_name not in {"title", "artist"}:
+                    continue
+                connection.execute(
+                    f"UPDATE tracks SET {field_name} = ? WHERE id = ?",
+                    (row["old_value"], int(row["track_id"])),
+                )
+
+            connection.execute("DELETE FROM replace_changes WHERE operation_id = ?", (operation_id,))
+            connection.execute("DELETE FROM replace_operations WHERE id = ?", (operation_id,))
+            connection.commit()
+
+        return {"operation_id": operation_id, "restored_tracks": len(rows)}
 
     def _list_playlist_track_ids(self, connection: sqlite3.Connection, playlist_id: int) -> list[int]:
         rows = connection.execute(
