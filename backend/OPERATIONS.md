@@ -38,3 +38,26 @@ This document defines the minimum operational baseline for the backend beta.
 4. Re-run smoke tests:
    - `pytest -q tests/test_postgres_api_smoke.py`
    - `pytest -q tests/infrastructure/test_postgres_live_repositories.py`
+
+## Beta exit checklist (Go/No-Go)
+
+Mark all items before promoting backend as beta-operational:
+
+- [ ] `backend-postgres-ci` green on **3 consecutive runs** for target branch
+- [ ] `pytest -q -m postgres_live` green in CI with `RUN_POSTGRES_TESTS=1`
+- [ ] `pytest -q -m "not postgres_live"` green in CI
+- [ ] `/ready` returns `200` and `checks.storage == "ok"` in beta environment
+- [ ] Alembic migration runbook (`alembic upgrade head`) verified by a second team member
+- [ ] Smoke API flow validated in beta env:
+  - create playlist
+  - add track
+  - read playlist
+  - playback state endpoint
+  - analysis-job create/poll/cancel
+- [ ] Incident rollback step documented with previous image/version tag
+
+Go decision:
+
+- **GO**: all checks completed and signed off
+- **NO-GO**: any critical check missing or flaky
+

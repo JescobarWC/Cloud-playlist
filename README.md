@@ -168,6 +168,8 @@ Beta hardening status:
 
 Operational runbook: see `backend/OPERATIONS.md`.
 
+Beta exit checklist: see `backend/OPERATIONS.md#beta-exit-checklist-go-no-go`.
+
 
 ## Example duplicate + find/replace flow
 
