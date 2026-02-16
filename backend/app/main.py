@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.api.v1.imports import router as imports_router
 from app.api.v1.normalize import router as normalize_router
+from app.api.v1.virtualdj import router as virtualdj_router
 
 app = FastAPI(
     title="DJ Library & Bridge Platform API",
@@ -14,6 +15,7 @@ app = FastAPI(
 
 app.include_router(imports_router)
 app.include_router(normalize_router)
+app.include_router(virtualdj_router)
 
 
 @app.get("/health", tags=["system"])
